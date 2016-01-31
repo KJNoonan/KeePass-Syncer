@@ -1,12 +1,16 @@
 package server;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.Scanner;
 
-import Utils.HttpCodes;
+import Utils.HttpUtils;
 
 /**
 
@@ -15,18 +19,39 @@ public class WorkerRunnable implements Runnable{
 
     protected Socket clientSocket = null;
     protected String serverText = null;
-    protected String fileToManage = null;
+    protected File fileToManage = null;
     private OutputStream output = null;
     private InputStream input = null;
+    private ClassLoader loader = null;
+    private long sizeOfFile;
 
     public WorkerRunnable(Socket clientSocket, String serverText, String fileToManage) {
         this.clientSocket = clientSocket;
         this.serverText = serverText;
-        this.fileToManage = fileToManage;
+        loader = ClassLoader.getSystemClassLoader();
+        try {
+			this.fileToManage = new File(loader.getResource(fileToManage).toURI());
+		} catch (URISyntaxException e) {
+			e.printStackTrace();
+		}
+        if(fileToManage == null){
+        	//Fatal Error Goes here we can't do anything without a file
+        }
     }
     
-    public void Sync(){
-    	
+    private String Sync() throws IOException{
+    	String msg = HttpUtils.HEADER + " " + HttpUtils.STATUSES.OK + " " + HttpUtils.NOUNS.NUMBYTES + sizeOfFile;
+    	output.write(msg.getBytes());
+    	Scanner s = new Scanner(input).useDelimiter("\\A");
+    	String request = s.hasNext() ? s.next() : "";
+    	s.close();
+    	String[] elements = request.split(" ");
+    	if(elements[0].equals(HttpUtils.HEADER)) {
+    		
+    		return "";
+    	} else {
+    		return "CLOSE";
+    	}
     }
 
     public void run() {
@@ -44,13 +69,13 @@ time +
             while(cmd.equals("") || cmd.equalsIgnoreCase("quit") || cmd.equalsIgnoreCase("q")){
             	cmd = cmd.toUpperCase();
             	switch(cmd){
-            	case HttpCodes.COMMANDS.SNYC: 
+            	case HttpUtils.COMMANDS.SNYC: 
             		System.out.println("Sync Requested");
             		break;
-            	case HttpCodes.COMMANDS.UPLOAD: 
+            	case HttpUtils.COMMANDS.UPLOAD: 
             		System.out.println("Upload Requested");
             		break;
-            	case HttpCodes.COMMANDS.CLOSE:
+            	case HttpUtils.COMMANDS.CLOSE:
             		System.out.println("Kill the connection");
             	}
             }
@@ -67,8 +92,10 @@ time +
     private String getClientCommandRequest(){
     	Scanner s = new Scanner(input).useDelimiter("\\A");
     	String request = s.hasNext() ? s.next() : "";
+    	s.close();
     	String[] elements = request.split(" ");
-    	if(elements[0].equals(HttpCodes.HEADER)){
+    	if(elements[0].equals(HttpUtils.HEADER)){
+    		sizeOfFile = fileToManage.length();
     		return elements[1];
     	} else  {
     		return "CLOSE";
